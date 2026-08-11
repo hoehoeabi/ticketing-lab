@@ -177,3 +177,11 @@ Temporary Items
 
 # Security Configuration
 application-secret.yml
+
+# IntelliJ & IDE Configuration
+.idea/
+*.iml
+
+# Gradle Build & Cache Files
+.gradle/
+build/
