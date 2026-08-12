@@ -1,5 +1,6 @@
-package com.ticketing.ticketing_lab.global.security;
+package com.ticketing.ticketing_lab.global.security.jwt;
 
+import com.ticketing.ticketing_lab.global.security.user.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

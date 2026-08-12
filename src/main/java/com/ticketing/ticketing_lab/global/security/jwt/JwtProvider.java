@@ -1,4 +1,4 @@
-package com.ticketing.ticketing_lab.global.security;
+package com.ticketing.ticketing_lab.global.security.jwt;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
