@@ -56,6 +56,11 @@ dependencies {
 
 	// JUnit 5 테스트 테스크를 실행하고 런처를 구동하기 위한 테스트 전용 모듈
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// JWT (JSON Web Token) 생성 및 검증을 위한 라이브러리
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
 }
 
 tasks.named('test') {
