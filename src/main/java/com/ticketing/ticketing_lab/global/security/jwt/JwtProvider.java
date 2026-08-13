@@ -111,4 +111,12 @@ public class JwtProvider {
         }
         return false;
     }
+
+    /**
+     * Refresh Token 만료 시간을 초(s) 단위로 반환 (Redis TTL용)
+     */
+    public long getRefreshTokenExpirationSec() {
+        return refreshTokenExpirationMs / 1000;
+    }
+
 }
