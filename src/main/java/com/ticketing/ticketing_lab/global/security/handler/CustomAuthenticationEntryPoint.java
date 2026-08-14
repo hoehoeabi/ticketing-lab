@@ -1,25 +1,40 @@
 package com.ticketing.ticketing_lab.global.security.handler;
 
+import com.ticketing.ticketing_lab.global.common.RsData;
+import com.ticketing.ticketing_lab.global.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    private final ObjectMapper objectMapper;
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
 
-        // 401 Unauthorized 응답 및 JSON 표준 포맷 반환
+        log.warn("[AuthenticationEntryPoint] 인증 실패 (401): {}", authException.getMessage());
+
         response.setContentType("application/json;charset=UTF-8");
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
-        String jsonResponse = "{\"success\": false, \"message\": \"인증에 실패하였습니다. 유효한 토큰이 필요합니다.\", \"data\": null}";
-        response.getWriter().write(jsonResponse);
+        RsData<Void> errorResponse = RsData.of(
+                ErrorCode.UNAUTHORIZED.getCode(),
+                ErrorCode.UNAUTHORIZED.getMessage(),
+                null
+        );
+
+        response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }
 }
