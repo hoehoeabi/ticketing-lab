@@ -5,16 +5,18 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-
+가
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     /**
-     * 비즈니스 로직 예외 처리 (BusinessException)
+     * 비즈니스 로직 커스텀 예외 처리
+     * - HTTP Status: ErrorCode에 정의된 상태 코드 동적 적용 (400, 401, 403, 404, 409 등)
      */
     @ExceptionHandler(BusinessException.class)
     public RsData<Void> handleBusinessException(BusinessException e, HttpServletResponse response) {
@@ -26,7 +28,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * @Valid DTO 유효성 검증 실패 예외 처리
+     * @Valid DTO 유효성 검증 실패 예외 처리 (400 Bad Request)
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public RsData<Void> handleMethodArgumentNotValidException(MethodArgumentNotValidException e, HttpServletResponse response) {
@@ -43,7 +45,20 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 지원하지 않는 HTTP Method 호출 예외 처리
+     * 필수 요청 헤더 누락 예외 처리 (400 Bad Request)
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public RsData<Void> handleMissingRequestHeaderException(MissingRequestHeaderException e, HttpServletResponse response) {
+        log.warn("[Missing Header Exception] header: {}", e.getHeaderName());
+
+        response.setStatus(ErrorCode.INVALID_INPUT_VALUE.getStatus().value());
+
+        String errorMessage = "필수 요청 헤더 [" + e.getHeaderName() + "]가 누락되었습니다.";
+        return RsData.of(ErrorCode.INVALID_INPUT_VALUE.getCode(), errorMessage, null);
+    }
+
+    /**
+     * 지원하지 않는 HTTP Method 호출 예외 처리 (405 Method Not Allowed)
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public RsData<Void> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException e, HttpServletResponse response) {
@@ -54,7 +69,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 기타 미처리 서버 내부 예외 처리 (500 에러)
+     * 기타 미처리 서버 내부 예외 처리 (500 Internal Server Error)
+     * 위에서 캐치하지 못한 모든 Exception이 이곳으로 들어옴
      */
     @ExceptionHandler(Exception.class)
     public RsData<Void> handleException(Exception e, HttpServletResponse response) {
