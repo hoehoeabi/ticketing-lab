@@ -53,11 +53,11 @@ jobs:
           envs: DB_URL,DB_USERNAME,DB_PASSWORD,JWT_SECRET_KEY
           script: |
             cd ~/app
-              
-            export DB_URL=$DB_URL
-            export DB_USERNAME=$DB_USERNAME
-            export DB_PASSWORD=$DB_PASSWORD
-            export JWT_SECRET_KEY=$JWT_SECRET_KEY
+            가
+            export DB_URL="${DB_URL}"
+            export DB_USERNAME="${DB_USERNAME}"
+            export DB_PASSWORD="${DB_PASSWORD}"
+            export JWT_SECRET_KEY="${JWT_SECRET_KEY}"
               
             chmod +x ./deploy.sh
             ./deploy.sh
