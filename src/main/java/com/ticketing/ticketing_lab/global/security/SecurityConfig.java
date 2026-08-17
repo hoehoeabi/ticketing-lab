@@ -54,6 +54,7 @@ public class SecurityConfig {
                         // 회원가입, 로그인, Swagger, Health Check 등 인증 없이 허용할 API
                         .requestMatchers("/api/v1/users/signup", "/api/v1/users/login").permitAll()
                         .requestMatchers("/api/v1/auth/reissue").permitAll()
+                        .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
                         .anyRequest().authenticated()
                 )
