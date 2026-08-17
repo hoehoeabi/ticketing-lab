@@ -45,6 +45,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key_path: private_key.pem
+          envs: JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
           script: |
             cd ~/app
             ./deploy.sh
