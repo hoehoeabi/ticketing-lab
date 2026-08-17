@@ -41,16 +41,23 @@ jobs:
 
       - name: 🔄 6. EC2 서버에서 배포 스크립트 실행 (재시작)
         uses: appleboy/ssh-action@master
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key_path: private_key.pem
-          envs: JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+          envs: DB_URL,DB_USERNAME,DB_PASSWORD,JWT_SECRET_KEY
           script: |
             cd ~/app
-            export JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}"
-            export JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}"
-            export DB_URL="${{ secrets.DB_URL }}"
-            export DB_USERNAME="${{ secrets.DB_USERNAME }}"
-            export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+              
+            export DB_URL=$DB_URL
+            export DB_USERNAME=$DB_USERNAME
+            export DB_PASSWORD=$DB_PASSWORD
+            export JWT_SECRET_KEY=$JWT_SECRET_KEY
+              
+            chmod +x ./deploy.sh
             ./deploy.sh
