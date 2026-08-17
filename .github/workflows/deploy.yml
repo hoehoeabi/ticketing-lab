@@ -48,4 +48,5 @@ jobs:
           envs: JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
           script: |
             cd ~/app
+            export JWT_SECRET_KEY="${{ secrets.JWT_SECRET_KEY }}"
             ./deploy.sh
