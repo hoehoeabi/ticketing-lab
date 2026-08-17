@@ -2,44 +2,49 @@ name: Spring Boot CI/CD
 
 on:
   push:
-    branches: [ "main" ] 
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🛎️ 1. 저장소 체크아웃 (코드 가져오기)
-      uses: actions/checkout@v4
+      - name: 🛎️ 1. 저장소 체크아웃 (코드 가져오기)
+        uses: actions/checkout@v4
 
-    - name: ☕️ 2. Java 21 셋업
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'corretto'
+      - name: ☕️ 2. Java 21 셋업
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'corretto'
 
-    - name: 🔨 3. Gradle 실행 권한 부여
-      run: chmod +x gradlew
+      - name: 🔨 3. Gradle 실행 권한 부여
+        run: chmod +x gradlew
 
-    - name: 📦 4. Spring Boot 애플리케이션 빌드 (테스트 제외)
-      run: ./gradlew clean build -x test
+      - name: 📦 4. Spring Boot 애플리케이션 빌드 (테스트 제외)
+        run: ./gradlew clean build -x test
 
-    - name: 🚀 5. EC2 서버로 빌드된 파일(JAR) 전송
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_PRIVATE_KEY }}
-        source: "build/libs/*SNAPSHOT.jar"
-        target: "~/app/"
-        strip_components: 2
+      - name: 🔑 비공개 키 설정 (Base64 디코딩)
+        run: |
+          echo "${{ secrets.EC2_PRIVATE_KEY }}" | base64 -d > private_key.pem
+          chmod 600 private_key.pem
 
-    - name: 🔄 6. EC2 서버에서 배포 스크립트 실행 (재시작)
-      uses: appleboy/ssh-action@master
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USERNAME }}
-        key: ${{ secrets.EC2_PRIVATE_KEY }}
-        script: |
-          cd ~/app
-          ./deploy.sh
+      - name: 🚀 5. EC2 서버로 빌드된 파일(JAR) 전송
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key_path: private_key.pem
+          source: "build/libs/*SNAPSHOT.jar"
+          target: "~/app/"
+          strip_components: 2
+
+      - name: 🔄 6. EC2 서버에서 배포 스크립트 실행 (재시작)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key_path: private_key.pem
+          script: |
+            cd ~/app
+            ./deploy.sh
