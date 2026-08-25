@@ -37,7 +37,7 @@ dependencies {
 	// Redis 연결(Lettuce/Jedis) 및 인메모리 데이터 저장, 캐싱, 토큰/세션 관리 등을 지원하는 스프링 데이터 모듈
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	// 분산 락(Distributed Lock) 제어를 위한 Redisson 클라이언트
-	implementation 'org.redisson:redisson-spring-boot-starter:3.27.0'
+	implementation 'org.redisson:redisson:3.27.0'
 
 	// ===== Security & Auth =====
 	implementation 'org.springframework.boot:spring-boot-starter-security'
