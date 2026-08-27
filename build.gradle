@@ -18,49 +18,46 @@ repositories {
 }
 
 dependencies {
-	// ===== 1. JPA / 데이터베이스 연동 =====
+	// ===== Spring Boot Core & Web =====
+	// RESTful API 구축 및 내장 톰캣(Embedded Tomcat) 서버 실행, @RestController, RequestMapping 등 웹 MVC 기능 제공
+	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+
+	// ===== Database & ORM (JPA, MySQL, QueryDSL) =====
 	// Spring Data JPA 및 Hibernate를 사용해 RDB(MySQL)와 객체를 매핑(ORM)하고 CRUD, 트랜잭션 관리를 지원
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	// MySQL DB에 실제로 접속하기 위한 공식 JDBC 드라이버 (실행 시점에만 필요하므로 runtimeOnly)
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	// Spring Boot 3.x (Jakarta) 이상 환경을 위한 QueryDSL 설정
+	implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+	annotationProcessor 'com.querydsl:querydsl-apt:5.1.0:jakarta'
+	annotationProcessor 'jakarta.annotation:jakarta.annotation-api'
+	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 
-	// ===== 2. Redis 연동 =====
+	// ===== Redis & Concurrency =====
 	// Redis 연결(Lettuce/Jedis) 및 인메모리 데이터 저장, 캐싱, 토큰/세션 관리 등을 지원하는 스프링 데이터 모듈
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// 분산 락(Distributed Lock) 제어를 위한 Redisson 클라이언트
+	implementation 'org.redisson:redisson:3.27.0'
 
-	// ===== 3. Spring Security (보안 & 인증/인가) =====
+	// ===== Security & Auth =====
 	implementation 'org.springframework.boot:spring-boot-starter-security'
+	// JWT (JSON Web Token) 생성 및 검증을 위한 라이브러리
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
 
-	// ===== 4. Web / MVC =====
-	// RESTful API 구축 및 내장 톰캣(Embedded Tomcat) 서버 실행, @RestController, RequestMapping 등 웹 MVC 기능 제공
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-
-	// ===== 5. Lombok  =====
+	// ===== Utilities =====
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 
-	// ===== 6. Test (단위 테스트 & 통합 테스트) =====
-	// JPA 관련 컴포넌트만 슬라이스 테스트(@DataJpaTest)할 때 사용하는 모듈
+	// ===== Testing =====
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
-
-	// Redis 관련 연동 테스트를 위해 사용되는 모듈
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-redis-test'
-
-	// Security 인증/인가 로직(MockUser, MockMvc 인증 등)을 테스트할 때 활용
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
-
-	// Controller 및 Web 계층 슬라이스 테스트(@WebMvcTest, MockMvc 등)를 위한 모듈
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-
-	// JUnit 5 테스트 테스크를 실행하고 런처를 구동하기 위한 테스트 전용 모듈
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-	// JWT (JSON Web Token) 생성 및 검증을 위한 라이브러리
-	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
 }
 
 tasks.named('test') {
