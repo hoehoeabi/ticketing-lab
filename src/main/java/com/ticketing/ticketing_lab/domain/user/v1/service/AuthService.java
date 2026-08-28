@@ -61,9 +61,6 @@ public class AuthService {
 
         log.info("성공적으로 토큰이 재발급(RTR)되었습니다. User ID: {}", userId);
 
-        return TokenResponseDto.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .build();
+        return new TokenResponseDto(newAccessToken, newRefreshToken);
     }
 }
