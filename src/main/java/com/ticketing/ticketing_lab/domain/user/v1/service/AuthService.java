@@ -1,5 +1,7 @@
 package com.ticketing.ticketing_lab.domain.user.v1.service;
 
+import com.ticketing.ticketing_lab.domain.user.entity.User;
+import com.ticketing.ticketing_lab.domain.user.repository.UserRepository;
 import com.ticketing.ticketing_lab.domain.user.v1.dto.TokenResponseDto;
 import com.ticketing.ticketing_lab.global.error.BusinessException;
 import com.ticketing.ticketing_lab.global.error.ErrorCode;
@@ -18,6 +20,7 @@ public class AuthService {
 
     private final JwtProvider jwtProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final UserRepository userRepository;
 
     /**
      * RTR 기반 토큰 재발급 (Reissue)
@@ -48,11 +51,12 @@ public class AuthService {
             throw new BusinessException(ErrorCode.TOKEN_THEFT_DETECTED);
         }
 
-        // 신규 Access Token & Refresh Token 생성
-        String userEmail = jwtProvider.getClaims(refreshToken).get("email", String.class);
-        String userRole = jwtProvider.getClaims(refreshToken).get("role", String.class);
+        // refresh token에는 email,role이 없으므로 userId로 조회 후 email, role을 가져와야 함
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        String newAccessToken = jwtProvider.createAccessToken(userId, userEmail, userRole);
+        // 신규 Access Token & Refresh Token 생성
+        String newAccessToken = jwtProvider.createAccessToken(user.getId(), user.getEmail(), user.getRole().name());
         String newRefreshToken = jwtProvider.createRefreshToken(userId);
 
         // Redis의 Refresh Token 정보 갱신 (RTR)
