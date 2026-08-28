@@ -42,6 +42,15 @@ dependencies {
 	// ===== Security & Auth =====
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	// JWT (JSON Web Token) 생성 및 검증을 위한 라이브러리
+	/**
+	 * jjwt-api: JWT 생성 및 검증을 위한 API 제공
+	 * jjwt-impl: jjwt-api의 구현체 제공
+	 * jjwt-jackson: JSON 직렬화/역직렬화를 위한 Jackson 모듈 제공
+	 *
+	 *  생성 (Creation): Jwts.builder() -> JwtBuilder 인터페이스 (어떻게 클레임을 넣고 서명하는지)
+	 *  검증 (Parsing): Jwts.parser() -> JwtParserBuilder -> JwtParser (어떻게 서명을 검증하고 클레임을 파싱하는지)
+	 *  예외 (Exceptions): ExpiredJwtException, UnsupportedJwtException, SignatureException (검증 시 어떤 예외들이 터지는지)
+	 */
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
