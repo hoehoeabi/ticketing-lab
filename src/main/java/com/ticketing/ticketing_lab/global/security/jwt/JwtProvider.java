@@ -1,6 +1,7 @@
 package com.ticketing.ticketing_lab.global.security.jwt;
 
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
 import jakarta.annotation.PostConstruct;
@@ -17,7 +18,7 @@ import java.util.Date;
 public class JwtProvider {
 
     @Value("${jwt.secret}")
-    private String secretKeyPlain;
+    private String secretKeyBase64;
 
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpirationMs;
@@ -29,8 +30,8 @@ public class JwtProvider {
 
     @PostConstruct
     public void init() {
-        // Plain Text 형태의 Secret Key를 HMAC-SHA 알고리즘용 SecretKey 객체로 변환
-        this.secretKey = Keys.hmacShaKeyFor(secretKeyPlain.getBytes(StandardCharsets.UTF_8));
+        // Base64 인코딩된 Secret Key를 HMAC-SHA 알고리즘용 SecretKey 객체로 변환
+        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKeyBase64));
     }
 
     /**
