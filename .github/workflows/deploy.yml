@@ -1,63 +1,54 @@
-name: Spring Boot CI/CD
+name: Spring Boot CI/CD # GitHub Actions 탭에서 보여질 워크플로우의 이름.
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ] # main 브랜치에 코드가 푸시(Push)될 때마다 이 자동화 스크립트가 실행.
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest # 이 자동화 작업이 실행될 깃허브의 가상 서버 환경 (최신 우분투)
 
     steps:
       - name: 🛎️ 1. 저장소 체크아웃 (코드 가져오기)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # 깃허브 저장소에 있는 내 코드를 가상 서버로 그대로 복사해 옵니다.
 
       - name: ☕️ 2. Java 21 셋업
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v4 # 코드를 빌드하기 위해 자바 환경을 세팅합니다.
         with:
-          java-version: '21'
-          distribution: 'corretto'
+          java-version: '21' # 프로젝트에 맞는 자바 버전
+          distribution: 'corretto' # 아마존에서 제공하는 Corretto 자바 배포판 사용
 
       - name: 🔨 3. Gradle 실행 권한 부여
-        run: chmod +x gradlew
+        run: chmod +x gradlew # 빌드 도구인 gradlew 파일에 실행(x) 권한을 .
 
       - name: 📦 4. Spring Boot 애플리케이션 빌드 (테스트 제외)
-        run: ./gradlew clean build -x test
+        run: ./gradlew clean build -x test # 이전 빌드 결과물을 지우고(clean) 새로 빌드. 빠른 배포를 위해 테스트는 건너뜀(-x test).
 
-      - name: 🔑 비공개 키 설정 (Base64 디코딩)
+      - name: 🔑 5. 비공개 키 설정 (Base64 디코딩)
+        # 깃허브 Secrets에 Base64로 안전하게 변환해서 저장해 둔 EC2 접속용 .pem 키를 원래 텍스트로 복원하는 과정.
         run: |
           echo "${{ secrets.EC2_PRIVATE_KEY }}" | base64 -d > private_key.pem
-          chmod 600 private_key.pem
+          chmod 600 private_key.pem  # 키 파일의 보안을 위해 나(소유자)만 읽을 수 있도록 파일 권한을 600으로 잠금.
+        
 
-      - name: 🚀 5. EC2 서버로 빌드된 파일(JAR) 전송
-        uses: appleboy/scp-action@master
+      - name: 🚀 6. EC2 서버로 빌드된 파일(JAR) 전송
+        uses: appleboy/scp-action@master # SSH를 통해 원격지로 파일을 전송해 주는 플러그인.
+        with:
+          host: ${{ secrets.EC2_HOST }} # EC2 퍼블릭 IP
+          username: ${{ secrets.EC2_USERNAME }} # EC2 접속 계정 (예: ubuntu)
+          key_path: private_key.pem # 5번 스텝에서 복원한 접속용 열쇠 파일
+          source: "build/libs/*SNAPSHOT.jar" # 방금 가상 서버에서 성공적으로 빌드된 .jar 파일의 위치
+          target: "~/app/" # 내 실제 EC2 서버의 어디에 복사할 것인지 경로 지정 (내가가 만든 app 폴더)
+          strip_components: 2 # 파일 전송 시 앞의 불필요한 폴더 경로(build/libs/)는 떼어버리고 순수 .jar 파일만 전송합니다.
+
+      - name: 🔄 7. EC2 서버에서 무중단 배포 스크립트 실행
+        uses: appleboy/ssh-action@master # SSH로 내 EC2 서버에 원격 접속해서 터미널 명령어를 대신 쳐주는 플러그인.
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key_path: private_key.pem
-          source: "build/libs/*SNAPSHOT.jar"
-          target: "~/app/"
-          strip_components: 2
-
-      - name: 🔄 6. EC2 서버에서 배포 스크립트 실행 (재시작)
-        uses: appleboy/ssh-action@master
-        env:
-          DB_URL: ${{ secrets.DB_URL }}
-          DB_USERNAME: ${{ secrets.DB_USERNAME }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USERNAME }}
-          key_path: private_key.pem
-          envs: DB_URL,DB_USERNAME,DB_PASSWORD,JWT_SECRET_KEY
+          #  EC2 서버 안의 .env 파일을 직접 읽어오므로 보안도 챙기고 스크립트도 가벼워짐.
           script: |
             cd ~/app
-            
-            export DB_URL="${DB_URL}"
-            export DB_USERNAME="${DB_USERNAME}"
-            export DB_PASSWORD="${DB_PASSWORD}"
-            export JWT_SECRET_KEY="${JWT_SECRET_KEY}"
-              
             chmod +x ./deploy.sh
             ./deploy.sh
