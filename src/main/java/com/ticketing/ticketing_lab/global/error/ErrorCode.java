@@ -16,6 +16,7 @@ public enum ErrorCode {
 
     // 401 Unauthorized (인증/토큰 관련)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "401", "인증 정보가 유효하지 않습니다."),
+    LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "401", "이메일 또는 비밀번호가 올바르지 않습니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "401", "유효하지 않거나 만료된 Refresh Token입니다."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "401", "이미 로그아웃되었거나 만료된 토큰입니다."),
     TOKEN_THEFT_DETECTED(HttpStatus.UNAUTHORIZED, "401", "보안 위협이 감지되어 토큰이 무효화되었습니다. 다시 로그인해 주세요."),
