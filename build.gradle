@@ -21,6 +21,8 @@ dependencies {
 	// ===== Spring Boot Core & Web =====
 	// RESTful API 구축 및 내장 톰캣(Embedded Tomcat) 서버 실행, @RestController, RequestMapping 등 웹 MVC 기능 제공
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	// DTO 유효성 검증 (@Valid, @NotBlank, @Email 등)
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	// ===== Database & ORM (JPA, MySQL, QueryDSL) =====
 	// Spring Data JPA 및 Hibernate를 사용해 RDB(MySQL)와 객체를 매핑(ORM)하고 CRUD, 트랜잭션 관리를 지원
