@@ -1,6 +1,7 @@
 package com.ticketing.ticketing_lab.domain.ticket.v2.facade;
 
 import com.ticketing.ticketing_lab.domain.order.repository.TicketOrderRepository;
+import com.ticketing.ticketing_lab.domain.order.v1.service.TicketOrderService;
 import com.ticketing.ticketing_lab.domain.ticket.entity.Ticket;
 import com.ticketing.ticketing_lab.domain.ticket.repository.TicketRepository;
 import com.ticketing.ticketing_lab.domain.user.entity.User;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -38,6 +40,9 @@ class TicketReservationConcurrencyTest {
     @Autowired
     private TicketOrderRepository ticketOrderRepository;
 
+    @Autowired
+    private TicketOrderService ticketOrderService;
+
     private Ticket savedTicket;
     private final List<User> users = new ArrayList<>();
 
@@ -45,7 +50,7 @@ class TicketReservationConcurrencyTest {
     void setUp() {
         // 1. 티켓 1개 생성 (재고 100개)
         Ticket ticket = Ticket.builder()
-                .title("아이유 콘서트 선착순 예매")
+                .title("나가수 콘서트 선착순 예매")
                 .totalQuantity(100)
                 .remainingQuantity(100)
                 .openAt(LocalDateTime.now())
@@ -74,42 +79,100 @@ class TicketReservationConcurrencyTest {
     }
 
     @Test
-    @DisplayName("100명의 유저가 동시에 예매를 요청하면 재고가 정확히 0이 되어야 한다 (Redisson Lock)")
+    @DisplayName("[성공 케이스] Redisson 분산 락 적용 시 100명 동시 예매 -> 전원 체결, 재고 0개 정합성 보장")
     void concurrentReservationTest() throws InterruptedException {
         // given
         int threadCount = 100;
-        // 32개의 스레드가 동시에 작업을 처리하도록 스레드 풀 생성 (동시성 극대화)
         ExecutorService executorService = Executors.newFixedThreadPool(32);
-        // 모든 스레드의 작업이 끝날 때까지 메인 스레드를 대기시키기 위한 장치
         CountDownLatch latch = new CountDownLatch(threadCount);
+
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicInteger failureCount = new AtomicInteger();
 
         // when
         for (int i = 0; i < threadCount; i++) {
             User currentUser = users.get(i);
             executorService.submit(() -> {
                 try {
+                    // Redisson Lock Facade를 통해 락 획득 후 순차 처리
                     redissonLockTicketFacade.reserveTicket(currentUser.getId(), savedTicket.getId());
+                    successCount.incrementAndGet();
                 } catch (Exception e) {
-                    System.out.println("예외 발생: " + e.getMessage());
+                    failureCount.incrementAndGet();
                 } finally {
-                    latch.countDown(); // 작업 완료 시 카운트 감소
+                    latch.countDown();
                 }
             });
         }
 
-        latch.await(); // 100개의 요청이 모두 끝날 때까지 대기
+        latch.await();
 
         // then
         Ticket findTicket = ticketRepository.findById(savedTicket.getId()).orElseThrow();
         long orderCount = ticketOrderRepository.count();
 
-        System.out.println("남은 티켓 수량: " + findTicket.getRemainingQuantity());
-        System.out.println("생성된 주문 수: " + orderCount);
+        System.out.println("==================================================");
+        System.out.println(" [테스트 결과] Redisson 분산 락 적용");
+        System.out.println(" - 총 요청 스레드 수 : " + threadCount);
+        System.out.println(" - 성공한 예매 건수   : " + successCount.get());
+        System.out.println(" - 충돌/실패 건수     : " + failureCount.get());
+        System.out.println(" - 남은 티켓 수량     : " + findTicket.getRemainingQuantity() + " (기대값: 0, 완벽 일치)");
+        System.out.println(" - DB 생성된 주문 수  : " + orderCount);
+        System.out.println("==================================================");
 
-        // 잔여 수량이 0인지 검증 (Race Condition 발생 시 0보다 큰 값이 남음)
+        // 100건 모두 정상 체결 및 재고 0개 도달 검증
         assertThat(findTicket.getRemainingQuantity()).isEqualTo(0);
-
-        // 실제 생성된 주문(Order) 데이터가 100개인지 검증
         assertThat(orderCount).isEqualTo(100);
+        assertThat(successCount.get()).isEqualTo(100);
+        assertThat(failureCount.get()).isEqualTo(0);
     }
+
+    @Test
+    @DisplayName("[실패 케이스] 락 없이 100명이 동시 예매 시 갱신 분실/버전 충돌로 대다수 요청 실패 및 재고 불일치")
+    void raceConditionWithoutLockTest() throws InterruptedException {
+        // given
+        int threadCount = 100;
+        ExecutorService executorService = Executors.newFixedThreadPool(32);
+        CountDownLatch latch = new CountDownLatch(threadCount);
+
+        // 멀티스레드 환경에서 안전하게 카운트를 집계하기 위한 원자적 정수 객체
+        AtomicInteger successCount = new AtomicInteger();
+        AtomicInteger failureCount = new AtomicInteger();
+
+        // when
+        for (int i = 0; i < threadCount; i++) {
+            User currentUser = users.get(i);
+            executorService.submit(() -> {
+                try {
+                    // 분산 락 없이 트랜잭션 서비스 직접 호출 (낙관적 락 충돌 유발)
+                    ticketOrderService.createOrder(currentUser.getId(), savedTicket.getId());
+                    successCount.incrementAndGet();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                } finally {
+                    latch.countDown();
+                }
+            });
+        }
+
+        latch.await();
+
+        // then
+        Ticket findTicket = ticketRepository.findById(savedTicket.getId()).orElseThrow();
+        long orderCount = ticketOrderRepository.count();
+
+        System.out.println("==================================================");
+        System.out.println(" [테스트 결과] 락 미적용 (순수 JPA @Version 충돌)");
+        System.out.println(" - 총 요청 스레드 수 : " + threadCount);
+        System.out.println(" - 성공한 예매 건수   : " + successCount.get());
+        System.out.println(" - 충돌/실패 건수     : " + failureCount.get());
+        System.out.println(" - 남은 티켓 수량     : " + findTicket.getRemainingQuantity() + " (기대값: 0, 불일치)");
+        System.out.println(" - DB 생성된 주문 수  : " + orderCount);
+        System.out.println("==================================================");
+
+        // 100명이 주문을 시도했으나 충돌로 인해 티켓이 0이 되지 못함을 검증
+        assertThat(findTicket.getRemainingQuantity()).isGreaterThan(0);
+        assertThat(orderCount).isEqualTo(successCount.get());
+    }
+
 }
