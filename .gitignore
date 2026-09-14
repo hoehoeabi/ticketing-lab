@@ -185,3 +185,6 @@ application-secret.yml
 # Gradle Build & Cache Files
 .gradle/
 build/
+
+# Local Documentation
+PROJECT_OVERVIEW.md
