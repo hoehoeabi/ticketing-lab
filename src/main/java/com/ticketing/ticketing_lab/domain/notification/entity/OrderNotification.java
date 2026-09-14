@@ -45,4 +45,8 @@ public class OrderNotification {
         this.status = NotificationStatus.SENT;
         this.sentAt = LocalDateTime.now();
     }
+
+    public void markAsFailed() {
+        this.status = NotificationStatus.FAILED;
+    }
 }

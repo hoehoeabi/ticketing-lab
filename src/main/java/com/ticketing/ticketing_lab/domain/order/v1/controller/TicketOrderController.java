@@ -7,8 +7,8 @@ import com.ticketing.ticketing_lab.global.common.RsData;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Slice;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import com.ticketing.ticketing_lab.global.security.user.CustomUserDetails;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -34,14 +34,11 @@ public class TicketOrderController {
 
     // 2. 선착순 예매 (Redisson Lock 적용)
     @PostMapping("/{ticketId}")
-    public RsData<Long> reserveTicket(@PathVariable Long ticketId) {
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        // 인증 객체에서 유저 PK(Long) 추출
-        Long userId = Long.valueOf(authentication.getName());
-
-        Long orderId = redissonLockTicketFacade.reserveTicket(userId, ticketId);
-
+    public RsData<Long> reserveTicket(
+            @PathVariable Long ticketId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        Long orderId = redissonLockTicketFacade.reserveTicket(userDetails.getUserId(), ticketId);
         return RsData.success("티켓 예매에 성공했습니다.", orderId);
     }
 }

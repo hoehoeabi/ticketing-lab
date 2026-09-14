@@ -40,6 +40,9 @@ class TicketReservationConcurrencyTest {
     @Autowired
     private TicketOrderRepository ticketOrderRepository;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.ticketing.ticketing_lab.domain.notification.listener.OrderNotificationEventListener orderNotificationEventListener;
+
     @Autowired
     private TicketOrderService ticketOrderService;
 
