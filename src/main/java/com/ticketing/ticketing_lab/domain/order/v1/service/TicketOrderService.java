@@ -8,9 +8,11 @@ import com.ticketing.ticketing_lab.domain.ticket.entity.Ticket;
 import com.ticketing.ticketing_lab.domain.ticket.repository.TicketRepository;
 import com.ticketing.ticketing_lab.domain.user.entity.User;
 import com.ticketing.ticketing_lab.domain.user.repository.UserRepository;
+import com.ticketing.ticketing_lab.domain.order.event.OrderCreatedEvent;
 import com.ticketing.ticketing_lab.global.error.BusinessException;
 import com.ticketing.ticketing_lab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class TicketOrderService {
     private final TicketOrderRepository ticketOrderRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // 대용량 조회 최적화 로직 (No-Offset)
     @Transactional(readOnly = true)
@@ -56,6 +59,14 @@ public class TicketOrderService {
                 .build();
 
         ticketOrderRepository.save(order);
+
+        // 비동기 알림 및 이메일 발송을 위한 이벤트 발행
+        eventPublisher.publishEvent(new OrderCreatedEvent(
+                order.getId(),
+                user.getId(),
+                user.getEmail(),
+                ticket.getTitle()
+        ));
 
         return order.getId();
     }
