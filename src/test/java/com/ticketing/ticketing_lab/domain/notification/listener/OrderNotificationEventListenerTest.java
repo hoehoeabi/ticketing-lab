@@ -3,6 +3,9 @@ package com.ticketing.ticketing_lab.domain.notification.listener;
 import com.ticketing.ticketing_lab.domain.notification.entity.OrderNotification;
 import com.ticketing.ticketing_lab.domain.notification.enums.NotificationStatus;
 import com.ticketing.ticketing_lab.domain.notification.repository.OrderNotificationRepository;
+import com.ticketing.ticketing_lab.domain.order.entity.TicketOrder;
+import com.ticketing.ticketing_lab.domain.order.enums.OrderStatus;
+import com.ticketing.ticketing_lab.domain.order.event.OrderCreatedEvent;
 import com.ticketing.ticketing_lab.domain.order.repository.TicketOrderRepository;
 import com.ticketing.ticketing_lab.domain.order.v1.service.TicketOrderService;
 import com.ticketing.ticketing_lab.domain.ticket.entity.Ticket;
@@ -16,6 +19,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -39,6 +45,12 @@ class OrderNotificationEventListenerTest {
 
     @Autowired
     private OrderNotificationRepository orderNotificationRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     private User savedUser;
     private Ticket savedTicket;
@@ -94,15 +106,27 @@ class OrderNotificationEventListenerTest {
     @Test
     @DisplayName("[트랜잭션 롤백 테스트] 주문 도중 예외로 트랜잭션이 롤백되면 알림 이벤트가 실행되지 않는다")
     void orderCreatedEvent_rollback_noNotification() throws InterruptedException {
-        // given: 티켓 잔여 수량을 0으로 변경
-        savedTicket.decreaseQuantity(10);
-        ticketRepository.save(savedTicket);
+        // given: 외래키 제약조건을 만족하도록 유효한 TicketOrder를 먼저 하나 저장
+        TicketOrder order = ticketOrderRepository.save(TicketOrder.builder()
+                .user(savedUser)
+                .ticket(savedTicket)
+                .status(OrderStatus.SUCCESS)
+                .build());
 
-        // when: 매진된 티켓 주문 시도 -> BusinessException 발생 및 롤백
-        org.junit.jupiter.api.Assertions.assertThrows(
-                com.ticketing.ticketing_lab.global.error.BusinessException.class,
-                () -> ticketOrderService.createOrder(savedUser.getId(), savedTicket.getId())
-        );
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+
+        // when: 트랜잭션 내에서 이벤트를 발행한 직후 강제로 롤백(예외 발생)
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> {
+            transactionTemplate.execute(status -> {
+                eventPublisher.publishEvent(new OrderCreatedEvent(
+                        order.getId(),
+                        savedUser.getId(),
+                        savedUser.getEmail(),
+                        savedTicket.getTitle()
+                ));
+                throw new RuntimeException("강제 롤백 유도 예외");
+            });
+        });
 
         // then: 500ms 대기 후에도 알림 데이터가 전혀 생성되지 않음을 검증
         Thread.sleep(500);
