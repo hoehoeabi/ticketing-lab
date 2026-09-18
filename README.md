@@ -16,7 +16,7 @@
 ### 🛠 기술 스택 (Tech Stack)
 
 - **Language / Runtime**: Java 21
-- **Framework**: Spring Boot 3.x, Spring Security 6, Spring Data JPA, QueryDSL (Jakarta)
+- **Framework**: Spring Boot 4.1.0, Spring Security , Spring Data JPA, QueryDSL (Jakarta)
 - **Concurrency & Cache**: Redis, Redisson (Distributed Lock)
 - **Database**: MySQL 8.0 (InnoDB)
 - **CI/CD & Infra**: AWS EC2, Nginx (Reverse Proxy), GitHub Actions (Blue/Green Deployment)
