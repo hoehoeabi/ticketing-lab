@@ -13,6 +13,7 @@ import com.ticketing.ticketing_lab.global.error.BusinessException;
 import com.ticketing.ticketing_lab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,14 @@ public class TicketOrderService {
     public Slice<TicketOrderResponseDto> getOrdersNoOffset(LocalDateTime lastCreatedAt, Long lastId, int size) {
         PageRequest pageRequest = PageRequest.of(0, size);
         return ticketOrderRepository.findOrdersNoOffset(lastCreatedAt, lastId, pageRequest)
+                .map(TicketOrderResponseDto::from);
+    }
+
+    // [대조군]  Offset 기반 페이징 (100만 건 환경에서 Full Table Scan 지연 비교용)
+    @Transactional(readOnly = true)
+    public Page<TicketOrderResponseDto> getOrdersOffset(int page, int size) {
+        PageRequest pageRequest = PageRequest.of(page, size);
+        return ticketOrderRepository.findOrdersOffset(pageRequest)
                 .map(TicketOrderResponseDto::from);
     }
 

@@ -11,7 +11,6 @@ import java.time.LocalDateTime;
 //,TicketOrderRepositoryCustom
 public interface TicketOrderRepository extends JpaRepository<TicketOrder, Long> {
 
-    // JPQL 기반 @Query 어노테이션 메서드는 삭제! QueryDSL 구현체가 대신 동작
     /**
      * N+1 문제 방지를 위한 Fetch Join + No-Offset 커서 페이징
      * 첫 페이지 요청 시 커서 값이 null이므로 IS NULL 체크 포함
@@ -28,4 +27,15 @@ public interface TicketOrderRepository extends JpaRepository<TicketOrder, Long> 
             @Param("lastId") Long lastId,
             Pageable pageable
     );
+
+    /**
+     * [대조군] 전통적인 Offset 기반 페이징 (Fetch Join 적용)
+     * 100만 건 대용량 환경에서 뒤쪽 페이지 조회 시 Full Table Scan 지연 비교용
+     */
+    @Query(value = "SELECT o FROM TicketOrder o " +
+            "JOIN FETCH o.user " +
+            "JOIN FETCH o.ticket " +
+            "ORDER BY o.createdAt DESC, o.id DESC",
+            countQuery = "SELECT count(o) FROM TicketOrder o")
+    org.springframework.data.domain.Page<TicketOrder> findOrdersOffset(Pageable pageable);
 }
