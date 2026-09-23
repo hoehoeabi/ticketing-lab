@@ -67,7 +67,7 @@ class TicketV1ServiceTest {
         // given
         LocalDateTime openAt = LocalDateTime.now().plusDays(3);
         Ticket ticket = Ticket.builder()
-                .title("아이유 콘서트")
+                .title("윤진석 콘서트")
                 .totalQuantity(100)
                 .remainingQuantity(100)
                 .openAt(openAt)
@@ -78,7 +78,7 @@ class TicketV1ServiceTest {
         TicketResponseDto response = ticketV1Service.getTicket(1L);
 
         // then
-        assertThat(response.title()).isEqualTo("아이유 콘서트");
+        assertThat(response.title()).isEqualTo("윤진석 콘서트");
         assertThat(response.totalQuantity()).isEqualTo(100);
     }
 
