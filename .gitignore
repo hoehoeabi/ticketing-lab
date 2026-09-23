@@ -188,3 +188,8 @@ build/
 
 # Local Documentation
 PROJECT_OVERVIEW.md
+
+# Python & Locust
+__pycache__/
+*.pyc
+*.pyo
