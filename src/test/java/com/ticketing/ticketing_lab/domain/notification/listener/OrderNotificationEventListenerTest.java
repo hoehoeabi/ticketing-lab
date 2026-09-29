@@ -57,6 +57,9 @@ class OrderNotificationEventListenerTest {
 
     @BeforeEach
     void setUp() {
+        orderNotificationRepository.deleteAllInBatch();
+        ticketOrderRepository.deleteAllInBatch();
+
         savedUser = userRepository.save(User.builder()
                 .email("buyer@test.com")
                 .password("encoded_pwd")
@@ -65,7 +68,7 @@ class OrderNotificationEventListenerTest {
                 .build());
 
         savedTicket = ticketRepository.save(Ticket.builder()
-                .title("아이유 2026 월드투어 콘서트")
+                .title("윤진석 2026 월드투어 콘서트")
                 .totalQuantity(10)
                 .remainingQuantity(10)
                 .openAt(LocalDateTime.now())

@@ -53,7 +53,7 @@ class TicketReservationConcurrencyTest {
     void setUp() {
         // 1. 티켓 1개 생성 (재고 100개)
         Ticket ticket = Ticket.builder()
-                .title("나가수 콘서트 선착순 예매")
+                .title("윤진석 콘서트 선착순 예매")
                 .totalQuantity(100)
                 .remainingQuantity(100)
                 .openAt(LocalDateTime.now())
