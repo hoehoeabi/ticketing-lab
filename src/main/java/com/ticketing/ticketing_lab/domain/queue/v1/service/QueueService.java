@@ -1,6 +1,5 @@
 package com.ticketing.ticketing_lab.domain.queue.v1.service;
 
-import com.ticketing.ticketing_lab.domain.queue.enums.QueueStatus;
 import com.ticketing.ticketing_lab.domain.queue.v1.dto.QueueResponseDto;
 import com.ticketing.ticketing_lab.domain.ticket.repository.TicketRepository;
 import com.ticketing.ticketing_lab.global.error.BusinessException;
@@ -20,11 +19,16 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class QueueService {
 
+    private static final String ACTIVE_TICKETS_SET_KEY = "queue:active-tickets";
+
     @Value("${queue.estimated-tps:20}")
     private long estimatedTps = 20L;
 
     @Value("${queue.active-ttl-minutes:5}")
     private long activeTtlMinutes = 5L;
+
+    @Value("${queue.promotion.batch-size:20}")
+    private long promotionBatchSize = 20L;
 
     private final StringRedisTemplate stringRedisTemplate;
     private final TicketRepository ticketRepository;
@@ -53,6 +57,9 @@ public class QueueService {
                 member,
                 (double) System.currentTimeMillis()
         );
+
+        // 스케줄러가 탐색할 수 있도록 활성 대기열 목록에 티켓 ID 등록
+        stringRedisTemplate.opsForSet().add(ACTIVE_TICKETS_SET_KEY, String.valueOf(ticketId));
 
         // 현재 내 앞 순번(Rank) 조회 (0-based)
         Long rank = stringRedisTemplate.opsForZSet().rank(waitingKey, member);
@@ -128,6 +135,7 @@ public class QueueService {
                 stringRedisTemplate.opsForZSet().popMin(waitingKey, count);
 
         if (poppedUsers == null || poppedUsers.isEmpty()) {
+            stringRedisTemplate.opsForSet().remove(ACTIVE_TICKETS_SET_KEY, String.valueOf(ticketId));
             return 0L;
         }
 
@@ -142,8 +150,33 @@ public class QueueService {
             }
         }
 
-        log.info("[대기열 승격] ticketId: {}, 승격 완료 인원: {}명", ticketId, promotedCount);
+        // 대기열 잔여 인원 확인 후 비었으면 활성 티켓 목록에서 제거
+        Long remainingWaiting = getWaitingQueueSize(ticketId);
+        if (remainingWaiting == 0L) {
+            stringRedisTemplate.opsForSet().remove(ACTIVE_TICKETS_SET_KEY, String.valueOf(ticketId));
+        }
+
+        log.info("[대기열 승격] ticketId: {}, 승격 완료 인원: {}명 (잔여 대기: {}명)", ticketId, promotedCount, remainingWaiting);
         return promotedCount;
+    }
+
+    /**
+     * 모든 활성 티켓 대기열 승격 일괄 처리 (스케줄러 주기 실행용)
+     */
+    public void promoteAllWaitingQueues() {
+        Set<String> activeTicketIds = stringRedisTemplate.opsForSet().members(ACTIVE_TICKETS_SET_KEY);
+        if (activeTicketIds == null || activeTicketIds.isEmpty()) {
+            return;
+        }
+
+        for (String ticketIdStr : activeTicketIds) {
+            try {
+                Long ticketId = Long.valueOf(ticketIdStr);
+                promoteWaitingUsers(ticketId, promotionBatchSize);
+            } catch (Exception e) {
+                log.error("[대기열 일괄 승격 실패] ticketId: {}", ticketIdStr, e);
+            }
+        }
     }
 
     /**

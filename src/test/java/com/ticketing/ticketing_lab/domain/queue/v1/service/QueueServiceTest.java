@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -42,6 +43,9 @@ class QueueServiceTest {
 
     @Mock
     private ValueOperations<String, String> valueOperations;
+
+    @Mock
+    private SetOperations<String, String> setOperations;
 
     @Test
     @DisplayName("존재하지 않는 티켓으로 대기열 진입 시 TICKET_NOT_FOUND 예외 발생")
@@ -83,6 +87,7 @@ class QueueServiceTest {
         given(ticketRepository.existsById(ticketId)).willReturn(true);
         given(stringRedisTemplate.hasKey("queue:ticket:1:active:1")).willReturn(false);
         given(stringRedisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(stringRedisTemplate.opsForSet()).willReturn(setOperations);
         given(zSetOperations.addIfAbsent(eq("queue:ticket:1:waiting"), eq("1"), anyDouble())).willReturn(true);
         given(zSetOperations.rank("queue:ticket:1:waiting", "1")).willReturn(5L);
 
@@ -93,6 +98,7 @@ class QueueServiceTest {
         assertThat(response.status()).isEqualTo(QueueStatus.WAITING);
         assertThat(response.rank()).isEqualTo(5L);
         assertThat(response.estimatedWaitTimeSec()).isGreaterThan(0L);
+        verify(setOperations).add("queue:active-tickets", "1");
     }
 
     @Test
@@ -174,6 +180,8 @@ class QueueServiceTest {
         given(zSetOperations.popMin("queue:ticket:1:waiting", count))
                 .willReturn(Set.of(tuple1, tuple2));
         given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
+        given(zSetOperations.size("queue:ticket:1:waiting")).willReturn(0L);
+        given(stringRedisTemplate.opsForSet()).willReturn(setOperations);
 
         // when
         long promoted = queueService.promoteWaitingUsers(ticketId, count);
@@ -182,5 +190,49 @@ class QueueServiceTest {
         assertThat(promoted).isEqualTo(2L);
         verify(valueOperations).set(eq("queue:ticket:1:active:10"), eq("ACTIVE"), any(Duration.class));
         verify(valueOperations).set(eq("queue:ticket:1:active:20"), eq("ACTIVE"), any(Duration.class));
+        verify(setOperations).remove("queue:active-tickets", "1");
+    }
+
+    @Test
+    @DisplayName("대기열에 대기자가 없으면 0명을 반환하고 활성 목록에서 제거된다")
+    void promoteWaitingUsers_emptyQueue() {
+        // given
+        Long ticketId = 1L;
+        long count = 10L;
+
+        given(stringRedisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(zSetOperations.popMin("queue:ticket:1:waiting", count))
+                .willReturn(Collections.emptySet());
+        given(stringRedisTemplate.opsForSet()).willReturn(setOperations);
+
+        // when
+        long promoted = queueService.promoteWaitingUsers(ticketId, count);
+
+        // then
+        assertThat(promoted).isEqualTo(0L);
+        verify(setOperations).remove("queue:active-tickets", "1");
+    }
+
+    @Test
+    @DisplayName("모든 활성 티켓 대기열 일괄 승격 - 활성 티켓 목록의 각 티켓에 대해 승격이 수행된다")
+    void promoteAllWaitingQueues_success() {
+        // given
+        ZSetOperations.TypedTuple<String> tuple = ZSetOperations.TypedTuple.of("1", 1000.0);
+
+        given(stringRedisTemplate.opsForSet()).willReturn(setOperations);
+        given(setOperations.members("queue:active-tickets")).willReturn(Set.of("100"));
+        given(stringRedisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(zSetOperations.popMin(eq("queue:ticket:100:waiting"), anyLong()))
+                .willReturn(Set.of(tuple));
+        given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
+        given(zSetOperations.size("queue:ticket:100:waiting")).willReturn(0L);
+
+        // when
+        queueService.promoteAllWaitingQueues();
+
+        // then
+        verify(setOperations).members("queue:active-tickets");
+        verify(valueOperations).set(eq("queue:ticket:100:active:1"), eq("ACTIVE"), any(Duration.class));
+        verify(setOperations).remove("queue:active-tickets", "100");
     }
 }

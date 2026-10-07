@@ -38,3 +38,6 @@ jwt:
 queue:
   estimated-tps: 20          # 예상 초당 처리량 (대기 시간 계산용)
   active-ttl-minutes: 5      # Active 상태 유지 시간 (분 단위)
+  promotion:
+    batch-size: 20           # 1회 스케줄러 실행 시 승격 인원수
+    interval-ms: 1000        # 스케줄러 실행 주기 (ms 단위, 1초)
