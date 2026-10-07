@@ -2,6 +2,7 @@ package com.ticketing.ticketing_lab.domain.order.v1.controller;
 
 import com.ticketing.ticketing_lab.domain.order.v1.dto.TicketOrderResponseDto;
 import com.ticketing.ticketing_lab.domain.order.v1.service.TicketOrderService;
+import com.ticketing.ticketing_lab.domain.queue.v1.service.QueueService;
 import com.ticketing.ticketing_lab.domain.ticket.v2.facade.RedissonLockTicketFacade;
 import com.ticketing.ticketing_lab.global.common.RsData;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class TicketOrderController {
 
     private final TicketOrderService ticketOrderService;
     private final RedissonLockTicketFacade redissonLockTicketFacade;
+    private final QueueService queueService;
 
     // 1. 주문 내역 No-Offset 조회 (최적화 버전)
     @GetMapping
@@ -50,6 +52,7 @@ public class TicketOrderController {
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
         Long orderId = redissonLockTicketFacade.reserveTicket(userDetails.getUserId(), ticketId);
+        queueService.completeOrder(userDetails.getUserId(), ticketId);
         return RsData.success("티켓 예매에 성공했습니다.", orderId);
     }
 
