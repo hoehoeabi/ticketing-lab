@@ -23,6 +23,7 @@ public enum ErrorCode {
 
     // 403 Forbidden (권한 없음)
     ACCESS_DENIED(HttpStatus.FORBIDDEN, "403", "해당 리소스에 접근할 권한이 없습니다."),
+    QUEUE_NOT_ACTIVE(HttpStatus.FORBIDDEN, "403", "대기열을 통과하지 못했습니다. 대기 순번을 기다려 주세요."),
     TICKET_NOT_FOUND(HttpStatus.NOT_FOUND, "404", "해당 티켓을 찾을 수 없습니다."),
 
     // 404 Not Found (리소스 없음)
