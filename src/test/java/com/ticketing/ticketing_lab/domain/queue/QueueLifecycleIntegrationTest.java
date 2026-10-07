@@ -1,5 +1,6 @@
 package com.ticketing.ticketing_lab.domain.queue;
 
+import com.ticketing.ticketing_lab.domain.notification.repository.OrderNotificationRepository;
 import com.ticketing.ticketing_lab.domain.order.repository.TicketOrderRepository;
 import com.ticketing.ticketing_lab.domain.order.v1.controller.TicketOrderController;
 import com.ticketing.ticketing_lab.domain.queue.enums.QueueStatus;
@@ -60,6 +61,9 @@ class QueueLifecycleIntegrationTest {
     private TicketOrderRepository ticketOrderRepository;
 
     @Autowired
+    private OrderNotificationRepository orderNotificationRepository;
+
+    @Autowired
     private StringRedisTemplate stringRedisTemplate;
 
     private Ticket ticket;
@@ -90,6 +94,7 @@ class QueueLifecycleIntegrationTest {
     }
 
     private void cleanUpData() {
+        orderNotificationRepository.deleteAllInBatch();
         ticketOrderRepository.deleteAllInBatch();
         ticketRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();
