@@ -1,5 +1,6 @@
 package com.ticketing.ticketing_lab.domain.ticket.v2.facade;
 
+import com.ticketing.ticketing_lab.domain.notification.repository.OrderNotificationRepository;
 import com.ticketing.ticketing_lab.domain.order.repository.TicketOrderRepository;
 import com.ticketing.ticketing_lab.domain.order.v1.service.TicketOrderService;
 import com.ticketing.ticketing_lab.domain.ticket.entity.Ticket;
@@ -40,6 +41,9 @@ class TicketReservationConcurrencyTest {
     @Autowired
     private TicketOrderRepository ticketOrderRepository;
 
+    @Autowired
+    private OrderNotificationRepository orderNotificationRepository;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.ticketing.ticketing_lab.domain.notification.listener.OrderNotificationEventListener orderNotificationEventListener;
 
@@ -51,6 +55,8 @@ class TicketReservationConcurrencyTest {
 
     @BeforeEach
     void setUp() {
+        cleanUpData();
+
         // 1. 티켓 1개 생성 (재고 100개)
         Ticket ticket = Ticket.builder()
                 .title("윤진석 콘서트 선착순 예매")
@@ -75,7 +81,12 @@ class TicketReservationConcurrencyTest {
 
     @AfterEach
     void tearDown() {
-        // 테스트 간 데이터 오염 방지
+        cleanUpData();
+    }
+
+    private void cleanUpData() {
+        users.clear();
+        orderNotificationRepository.deleteAllInBatch();
         ticketOrderRepository.deleteAllInBatch();
         ticketRepository.deleteAllInBatch();
         userRepository.deleteAllInBatch();
