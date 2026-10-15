@@ -47,6 +47,15 @@ public class TicketOrderService {
     }
 
     // 예매 트랜잭션 (Redisson Facade 안에서 호출됨)
+    /**
+     * [선착순 티켓 예매 쓰기 트랜잭션]
+     * 1. RedissonLockTicketFacade에서 Redis 분산 락을 먼저 획득한 후 이 메서드로
+     진입. (동시 진입 1건으로 직렬화)
+     * 2. findById 조회 시 Ticket 엔티티의 @Version 컬럼을 함께 읽어와 낙관적
+     락(Optimistic Lock) 버전을 확보.
+     * 3. 재고 차감(UPDATE) 및 주문 생성(INSERT) 후 트랜잭션 커밋(디스크 I/O)이
+     완료되면 분산 락이 해제.
+     */
     @Transactional
     public Long createOrder(Long userId, Long ticketId) {
         User user = userRepository.findById(userId)
