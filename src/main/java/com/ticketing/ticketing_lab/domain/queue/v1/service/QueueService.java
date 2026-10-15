@@ -30,14 +30,17 @@ public class QueueService {
     @Value("${queue.promotion.batch-size:20}")
     private long promotionBatchSize = 20L;
 
+    @Value("${queue.fast-path.enabled:true}")
+    private boolean fastPathEnabled = true;
+
     private final StringRedisTemplate stringRedisTemplate;
     private final TicketRepository ticketRepository;
 
     /**
      * 대기열 진입 (Enqueue)
      * - 이미 Active 상태라면 즉시 Active 응답
-     * - 미등록 시 ZSET에 현재 타임스탬프(Score)로 등록 (중복 요청 시 기존 Score 유지)
-     * - 현재 내 앞 대기 인원(Rank) 및 예상 대기 시간 반환
+     * - [Fast-Path] 대기열이 비어있는 한적한 상태라면 대기열을 거치지 않고 즉시 ACTIVE 토큰 발급 (0초 통과)
+     * - 대기자가 존재하는 경우 ZSET에 현재 타임스탬프(Score)로 등록하여 순차 승격 대기
      */
     public QueueResponseDto enterQueue(Long userId, Long ticketId) {
         validateTicket(ticketId);
@@ -48,6 +51,14 @@ public class QueueService {
         }
 
         String waitingKey = getWaitingQueueKey(ticketId);
+
+        // 🚀 [Fast-Path] 대기열에 아무도 없다면 1초 대기 없이 즉시 활성화
+        if (fastPathEnabled && getWaitingQueueSize(ticketId) == 0) {
+            activateUser(ticketId, userId);
+            log.info("[Fast-Path 즉시 승격] userId: {}, ticketId: {} - 대기열 없음, 즉시 ACTIVE 진입", userId, ticketId);
+            return QueueResponseDto.ofActive(userId, ticketId);
+        }
+
         String member = String.valueOf(userId);
 
         // 대기열 등록 (Score: 진입 시점 타임스탬프)
@@ -144,8 +155,7 @@ public class QueueService {
             String member = tuple.getValue();
             if (member != null) {
                 Long userId = Long.valueOf(member);
-                String activeKey = getActiveUserKey(ticketId, userId);
-                stringRedisTemplate.opsForValue().set(activeKey, "ACTIVE", Duration.ofMinutes(activeTtlMinutes));
+                activateUser(ticketId, userId);
                 promotedCount++;
             }
         }
@@ -208,5 +218,10 @@ public class QueueService {
         }
         long tps = (estimatedTps > 0) ? estimatedTps : 20L;
         return (rank / tps) + 1;
+    }
+
+    private void activateUser(Long ticketId, Long userId) {
+        String activeKey = getActiveUserKey(ticketId, userId);
+        stringRedisTemplate.opsForValue().set(activeKey, "ACTIVE", Duration.ofMinutes(activeTtlMinutes));
     }
 }

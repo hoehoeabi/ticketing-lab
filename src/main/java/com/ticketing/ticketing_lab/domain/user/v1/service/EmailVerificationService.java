@@ -5,18 +5,12 @@ import com.ticketing.ticketing_lab.domain.user.v1.dto.EmailSendResponseDto;
 import com.ticketing.ticketing_lab.global.error.BusinessException;
 import com.ticketing.ticketing_lab.global.error.ErrorCode;
 import com.ticketing.ticketing_lab.global.util.VerificationCodeGenerator;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -59,11 +53,8 @@ public class EmailVerificationService {
     @Value("${email.verification.max-attempts:5}")
     private long maxAttempts = 5L;
 
-    @Value("${spring.mail.username:}")
-    private String fromAddress = "";
-
     private final StringRedisTemplate stringRedisTemplate;
-    private final JavaMailSender mailSender;
+    private final EmailSender emailSender;
     private final UserRepository userRepository;
     private final VerificationCodeGenerator verificationCodeGenerator;
 
@@ -72,7 +63,7 @@ public class EmailVerificationService {
      * 1. 이미 가입된 이메일이면 메일을 보내지 않고 즉시 거부
      * 2. 재발송 쿨다운 확인 (SET NX EX로 원자적 처리)
      * 3. 6자리 난수 생성 후 Redis 저장 (TTL 5분, 재발송 시 이전 번호는 덮어써져 무효화)
-     * 4. SMTP 메일 발송 (실패 시 저장한 키를 정리하여 즉시 재시도 가능하도록 롤백)
+     * 4. SMTP 비동기 발송 (@Async): 톰캣 스레드 블로킹 없이 즉시 응답 (실패 시 비동기 스레드에서 Redis 롤백)
      */
     public EmailSendResponseDto sendVerificationCode(String rawEmail) {
         String email = normalize(rawEmail);
@@ -99,15 +90,10 @@ public class EmailVerificationService {
         // 새 인증번호가 발급되었으므로 이전 번호에 대한 시도 횟수는 초기화
         stringRedisTemplate.delete(ATTEMPTS_KEY_PREFIX + email);
 
-        try {
-            sendMail(email, code);
-        } catch (MailException | MessagingException e) {
-            stringRedisTemplate.delete(List.of(codeKey, cooldownKey));
-            log.error("[이메일 인증] 인증 메일 발송 실패 - email: {}", email, e);
-            throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED);
-        }
+        // 비동기 스레드 풀에서 SMTP 메일 전송
+        emailSender.sendVerificationEmailAsync(email, code, codeTtlSeconds, codeKey, cooldownKey);
 
-        log.info("[이메일 인증] 인증번호 발송 완료 - email: {}, ttl: {}s", email, codeTtlSeconds);
+        log.info("[이메일 인증] 인증번호 발송 접수 완료 - email: {}, ttl: {}s", email, codeTtlSeconds);
         return new EmailSendResponseDto(codeTtlSeconds);
     }
 
@@ -180,30 +166,5 @@ public class EmailVerificationService {
     private String normalize(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
-
-    private void sendMail(String toEmail, String code) throws MessagingException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, false, StandardCharsets.UTF_8.name());
-
-        if (StringUtils.hasText(fromAddress)) {
-            helper.setFrom(fromAddress);
-        }
-        helper.setTo(toEmail);
-        helper.setSubject(MAIL_SUBJECT);
-        helper.setText(buildMailBody(code), true);
-
-        mailSender.send(message);
-    }
-
-    private String buildMailBody(String code) {
-        long minutes = Math.max(1, codeTtlSeconds / 60);
-        return """
-                <div style="font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; border: 1px solid #e2e8f0; border-radius: 16px;">
-                  <h2 style="color: #0f172a; margin: 0 0 8px;">Ticketing Lab 이메일 인증</h2>
-                  <p style="color: #475569; font-size: 14px; margin: 0 0 24px;">아래 인증번호를 회원가입 화면에 입력해 주세요.</p>
-                  <div style="background: #eef2ff; color: #4338ca; font-size: 32px; font-weight: 700; letter-spacing: 8px; text-align: center; padding: 20px; border-radius: 12px;">%s</div>
-                  <p style="color: #64748b; font-size: 12px; margin: 24px 0 0;">이 인증번호는 <b>%d분</b> 후 만료됩니다. 본인이 요청하지 않았다면 이 메일을 무시해 주세요.</p>
-                </div>
-                """.formatted(code, minutes);
-    }
 }
+

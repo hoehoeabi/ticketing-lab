@@ -79,14 +79,36 @@ class QueueServiceTest {
     }
 
     @Test
-    @DisplayName("신규 유저 대기열 진입 시 ZSET에 추가되고 순번(Rank)이 반환된다")
-    void enterQueue_success() {
+    @DisplayName("[Fast-Path] 대기열에 대기자가 없으면 대기하지 않고 즉시 ACTIVE 상태와 토큰을 발급받는다")
+    void enterQueue_fastPath_success() {
         // given
         Long ticketId = 1L;
         Long userId = 1L;
         given(ticketRepository.existsById(ticketId)).willReturn(true);
         given(stringRedisTemplate.hasKey("queue:ticket:1:active:1")).willReturn(false);
         given(stringRedisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(zSetOperations.size("queue:ticket:1:waiting")).willReturn(0L); // 대기자 0명
+        given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
+
+        // when
+        QueueResponseDto response = queueService.enterQueue(userId, ticketId);
+
+        // then
+        assertThat(response.status()).isEqualTo(QueueStatus.ACTIVE);
+        assertThat(response.rank()).isEqualTo(0L);
+        verify(valueOperations).set(eq("queue:ticket:1:active:1"), eq("ACTIVE"), any(Duration.class));
+    }
+
+    @Test
+    @DisplayName("신규 유저 대기열 진입 시 기존 대기자가 있으면 ZSET에 추가되고 순번(Rank)이 반환된다")
+    void enterQueue_waiting_success() {
+        // given
+        Long ticketId = 1L;
+        Long userId = 1L;
+        given(ticketRepository.existsById(ticketId)).willReturn(true);
+        given(stringRedisTemplate.hasKey("queue:ticket:1:active:1")).willReturn(false);
+        given(stringRedisTemplate.opsForZSet()).willReturn(zSetOperations);
+        given(zSetOperations.size("queue:ticket:1:waiting")).willReturn(5L); // 기존 대기자 5명
         given(stringRedisTemplate.opsForSet()).willReturn(setOperations);
         given(zSetOperations.addIfAbsent(eq("queue:ticket:1:waiting"), eq("1"), anyDouble())).willReturn(true);
         given(zSetOperations.rank("queue:ticket:1:waiting", "1")).willReturn(5L);

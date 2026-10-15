@@ -92,7 +92,7 @@ class EmailVerificationIntegrationTest {
         assertThat(stringRedisTemplate.opsForValue().get(CODE_KEY)).isEqualTo(CODE);
         Long codeTtl = stringRedisTemplate.getExpire(CODE_KEY, TimeUnit.SECONDS);
         assertThat(codeTtl).isBetween(1L, 2L);
-        verify(mailSender).send(any(MimeMessage.class));
+        verify(mailSender, org.mockito.Mockito.timeout(3000)).send(any(MimeMessage.class));
 
         // when: 검증
         emailVerificationService.verifyCode(EMAIL, CODE);

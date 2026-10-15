@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -55,7 +56,7 @@ class EmailVerificationServiceTest {
     private ValueOperations<String, String> valueOperations;
 
     @Mock
-    private JavaMailSender mailSender;
+    private EmailSender emailSender;
 
     @Mock
     private UserRepository userRepository;
@@ -68,14 +69,13 @@ class EmailVerificationServiceTest {
     class SendVerificationCode {
 
         @Test
-        @DisplayName("성공 - 인증번호가 TTL 300초로 Redis에 저장되고 메일이 발송된다")
-        void sendSuccess() throws Exception {
+        @DisplayName("성공 - 인증번호가 TTL 300초로 Redis에 저장되고 비동기 메일 발송이 호출된다")
+        void sendSuccess() {
             // given
             given(userRepository.existsByEmail(EMAIL)).willReturn(false);
             given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
             given(valueOperations.setIfAbsent(eq(COOLDOWN_KEY), anyString(), any(Duration.class))).willReturn(true);
             given(verificationCodeGenerator.generate()).willReturn(CODE);
-            given(mailSender.createMimeMessage()).willReturn(new MimeMessage((Session) null));
 
             // when
             EmailSendResponseDto response = emailVerificationService.sendVerificationCode(EMAIL);
@@ -84,12 +84,7 @@ class EmailVerificationServiceTest {
             assertThat(response.expiresInSeconds()).isEqualTo(300L);
             verify(valueOperations).set(CODE_KEY, CODE, Duration.ofSeconds(300));
             verify(stringRedisTemplate).delete(ATTEMPTS_KEY);
-
-            ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
-            verify(mailSender).send(captor.capture());
-            MimeMessage sent = captor.getValue();
-            assertThat(sent.getRecipients(Message.RecipientType.TO)[0].toString()).isEqualTo(EMAIL);
-            assertThat(sent.getContent().toString()).contains(CODE);
+            verify(emailSender).sendVerificationEmailAsync(EMAIL, CODE, 300L, CODE_KEY, COOLDOWN_KEY);
         }
 
         @Test
@@ -100,13 +95,13 @@ class EmailVerificationServiceTest {
             given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
             given(valueOperations.setIfAbsent(eq(COOLDOWN_KEY), anyString(), any(Duration.class))).willReturn(true);
             given(verificationCodeGenerator.generate()).willReturn(CODE);
-            given(mailSender.createMimeMessage()).willReturn(new MimeMessage((Session) null));
 
             // when
             emailVerificationService.sendVerificationCode("  Test@TEST.com ");
 
             // then
             verify(valueOperations).set(CODE_KEY, CODE, Duration.ofSeconds(300));
+            verify(emailSender).sendVerificationEmailAsync(EMAIL, CODE, 300L, CODE_KEY, COOLDOWN_KEY);
         }
 
         @Test
@@ -119,7 +114,7 @@ class EmailVerificationServiceTest {
             assertThatThrownBy(() -> emailVerificationService.sendVerificationCode(EMAIL))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DUPLICATE_EMAIL);
-            verify(mailSender, never()).send(any(MimeMessage.class));
+            verify(emailSender, never()).sendVerificationEmailAsync(any(), any(), anyLong(), any(), any());
         }
 
         @Test
@@ -137,25 +132,7 @@ class EmailVerificationServiceTest {
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EMAIL_SEND_TOO_FREQUENT)
                     .hasMessageContaining("42초");
             verify(valueOperations, never()).set(anyString(), anyString(), any(Duration.class));
-            verify(mailSender, never()).send(any(MimeMessage.class));
-        }
-
-        @Test
-        @DisplayName("실패 - SMTP 발송 실패 시 저장된 인증번호/쿨다운 키를 롤백하고 EMAIL_SEND_FAILED 예외가 발생한다")
-        void sendFailSmtpError() {
-            // given
-            given(userRepository.existsByEmail(EMAIL)).willReturn(false);
-            given(stringRedisTemplate.opsForValue()).willReturn(valueOperations);
-            given(valueOperations.setIfAbsent(eq(COOLDOWN_KEY), anyString(), any(Duration.class))).willReturn(true);
-            given(verificationCodeGenerator.generate()).willReturn(CODE);
-            given(mailSender.createMimeMessage()).willReturn(new MimeMessage((Session) null));
-            willThrow(new MailSendException("SMTP 연결 실패")).given(mailSender).send(any(MimeMessage.class));
-
-            // when & then
-            assertThatThrownBy(() -> emailVerificationService.sendVerificationCode(EMAIL))
-                    .isInstanceOf(BusinessException.class)
-                    .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EMAIL_SEND_FAILED);
-            verify(stringRedisTemplate).delete(List.of(CODE_KEY, COOLDOWN_KEY));
+            verify(emailSender, never()).sendVerificationEmailAsync(any(), any(), anyLong(), any(), any());
         }
     }
 
