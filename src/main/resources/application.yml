@@ -28,6 +28,24 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: 6379
 
+  # SMTP 메일 설정 (Gmail 기준, 계정 정보는 application-secret.yml 또는 환경변수로 주입)
+  # Gmail은 일반 비밀번호가 아닌 '앱 비밀번호(16자리)'를 사용해야 합니다.
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000 # SMTP 서버 연결 타임아웃 (ms)
+          timeout: 5000           # 응답 대기 타임아웃 (ms)
+          writetimeout: 5000      # 쓰기 타임아웃 (ms)
+
 # JWT 커스텀 설정
 jwt:
   secret: ${JWT_SECRET_KEY}
@@ -41,3 +59,11 @@ queue:
   promotion:
     batch-size: 20           # 1회 스케줄러 실행 시 승격 인원수
     interval-ms: 1000        # 스케줄러 실행 주기 (ms 단위, 1초)
+
+# 이메일 인증(Email Verification) 설정
+email:
+  verification:
+    code-ttl-seconds: 300          # 인증번호 유효 시간 (5분) - key: email_code:{email}
+    verified-ttl-seconds: 600      # 인증 완료 플래그 유지 시간 (10분) - key: email_verified:{email}
+    resend-cooldown-seconds: 60    # 인증번호 재발송 최소 간격 (메일 폭탄/SMTP 할당량 소진 방지)
+    max-attempts: 5                # 인증번호 1개당 최대 검증 시도 횟수 (6자리 무차별 대입 방지)
