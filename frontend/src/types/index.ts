@@ -35,6 +35,10 @@ export interface LoginResponseDto {
   accessToken: string;
 }
 
+export interface EmailSendResponseDto {
+  expiresInSeconds: number;
+}
+
 export interface UserInfo {
   email: string;
   isLoggedIn: boolean;

@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,12 +47,16 @@ class UserServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private EmailVerificationService emailVerificationService;
+
     @Test
-    @DisplayName("회원가입 성공 - 비밀번호가 암호화되어 저장된다")
+    @DisplayName("회원가입 성공 - 비밀번호가 암호화되어 저장되고, 이메일 인증 플래그가 소모된다")
     void signUpSuccess() {
         // given
         UserSignUpReqDto reqDto = new UserSignUpReqDto("test@test.com", "password123", "LOCAL");
         given(userRepository.existsByEmail("test@test.com")).willReturn(false);
+        given(emailVerificationService.isVerified("test@test.com")).willReturn(true);
         given(passwordEncoder.encode("password123")).willReturn("encodedPassword");
 
         User savedUser = User.builder()
@@ -69,6 +74,7 @@ class UserServiceTest {
         assertThat(response.email()).isEqualTo("test@test.com");
         assertThat(response.role()).isEqualTo(Role.ROLE_USER);
         verify(userRepository).save(any(User.class));
+        verify(emailVerificationService).consumeVerification("test@test.com");
     }
 
     @Test
@@ -82,6 +88,22 @@ class UserServiceTest {
         assertThatThrownBy(() -> userService.signUp(reqDto))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.DUPLICATE_EMAIL);
+    }
+
+    @Test
+    @DisplayName("회원가입 실패 - 이메일 인증이 완료되지 않았으면 EMAIL_NOT_VERIFIED 예외가 발생하고 저장되지 않는다")
+    void signUpFailEmailNotVerified() {
+        // given
+        UserSignUpReqDto reqDto = new UserSignUpReqDto("unverified@test.com", "password123", "LOCAL");
+        given(userRepository.existsByEmail("unverified@test.com")).willReturn(false);
+        given(emailVerificationService.isVerified("unverified@test.com")).willReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> userService.signUp(reqDto))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EMAIL_NOT_VERIFIED);
+        verify(userRepository, never()).save(any(User.class));
+        verify(emailVerificationService, never()).consumeVerification(any());
     }
 
     @Test

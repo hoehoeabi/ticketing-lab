@@ -27,14 +27,21 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final EmailVerificationService emailVerificationService;
 
     /**
      * 회원가입
+     * - 이메일 인증(email_verified:{email})이 완료된 경우에만 가입 허용
      */
     @Transactional
     public UserResponseDto signUp(UserSignUpReqDto reqDto) {
         if (userRepository.existsByEmail(reqDto.email())) {
             throw new BusinessException(ErrorCode.DUPLICATE_EMAIL);
+        }
+
+        if (!emailVerificationService.isVerified(reqDto.email())) {
+            log.warn("[회원가입 거부] 이메일 미인증 - email: {}", reqDto.email());
+            throw new BusinessException(ErrorCode.EMAIL_NOT_VERIFIED);
         }
 
         User user = User.builder()
@@ -45,6 +52,9 @@ public class UserService {
                 .build();
 
         User savedUser = userRepository.save(user);
+
+        // 인증 완료 플래그 1회성 소모 (동일 인증으로 재가입 시도 방지)
+        emailVerificationService.consumeVerification(reqDto.email());
         log.info("[회원가입 완료] userId: {}, email: {}", savedUser.getId(), savedUser.getEmail());
 
         return UserResponseDto.from(savedUser);
